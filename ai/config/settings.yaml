@@ -15,6 +15,10 @@
     speaker: null
     sample_rate: 22050
     executable: piper
+    length_scale: 1.05
+    noise_scale: 0.45
+    noise_w_scale: 0.7
+    volume: 1.0
     stream_wav_chunks: true
 
 network:

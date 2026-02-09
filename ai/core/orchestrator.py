@@ -27,10 +27,11 @@ class Orchestrator:
         if _EMOTION_LINE_RE.match(assistant_text.strip()):
             assistant_text = ""
 
-        if not assistant_text.strip():
+        if not assistant_text.strip() and not session.used_empty_fallback:
             assistant_text = "I'm here. What would you like to talk about?"
             if emotion.get("emotion") in {"thinking", "neutral"}:
                 emotion = {"emotion": "curious", "intensity": 0.5}
+            session.used_empty_fallback = True
 
         # Update session history
         session.add_turn("user", text)

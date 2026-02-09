@@ -70,6 +70,10 @@ def build_orchestrator() -> Orchestrator:
             speaker=tts_cfg.get("speaker"),
             sample_rate=tts_cfg.get("sample_rate", 16000),
             executable=tts_cfg.get("executable", "piper"),
+            length_scale=tts_cfg.get("length_scale"),
+            noise_scale=tts_cfg.get("noise_scale"),
+            noise_w_scale=tts_cfg.get("noise_w_scale"),
+            volume=tts_cfg.get("volume"),
         )
     else:
         tts_streamer = XTTSEngine()
