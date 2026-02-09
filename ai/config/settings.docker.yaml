@@ -1,0 +1,32 @@
+﻿models:
+  llm:
+    provider: ollama
+    model: llama3.2:1b
+    host: http://ollama:11434
+    options:
+      temperature: 0.2
+      num_predict: 80
+      keep_alive: "10m"
+    warmup: true
+    warmup_prompt: "ping"
+  vlm:
+    provider: ollama
+    model: moondream2
+  stt:
+    provider: whisper
+    model: base
+  tts:
+    provider: xtts
+    model: default
+    stream_wav_chunks: true
+
+network:
+  host: 0.0.0.0
+  ws_port: 8001
+  http_port: 8000
+
+features:
+  use_vad: false
+  enable_memory: true
+  enable_safety_filter: true
+  allow_cloud_models: false

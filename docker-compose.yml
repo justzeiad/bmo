@@ -1,0 +1,19 @@
+﻿services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - BMO_SETTINGS=ai/config/settings.docker.yaml
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:

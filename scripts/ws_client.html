@@ -1,0 +1,109 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BMO WS Client</title>
+  <style>
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 24px; }
+    input, button, textarea { font: inherit; }
+    #log { width: 100%; height: 320px; }
+    .row { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>BMO WebSocket Client</h1>
+  <div class="row">
+    <label>WS URL: <input id="wsUrl" size="40" value="ws://localhost:8000/ws"></label>
+    <button id="connectBtn">Connect</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+  </div>
+  <div class="row">
+    <label>Text: <input id="textInput" size="60" placeholder="Say something"></label>
+    <button id="sendBtn" disabled>Send</button>
+  </div>
+  <div class="row">
+    <strong>Transcript:</strong> <span id="transcript"></span>
+  </div>
+  <div class="row">
+    <strong>Expression:</strong> <span id="expression"></span>
+  </div>
+  <textarea id="log" readonly></textarea>
+
+  <script>
+    let ws = null;
+    let audioCtx = null;
+    let nextPlayTime = 0;
+
+    const log = (msg) => {
+      const el = document.getElementById('log');
+      el.value += msg + "\n";
+      el.scrollTop = el.scrollHeight;
+    };
+
+    const setConnected = (connected) => {
+      document.getElementById('connectBtn').disabled = connected;
+      document.getElementById('disconnectBtn').disabled = !connected;
+      document.getElementById('sendBtn').disabled = !connected;
+    };
+
+    document.getElementById('connectBtn').onclick = () => {
+      const url = document.getElementById('wsUrl').value;
+      ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = () => {
+        setConnected(true);
+        log('connected');
+        ws.send(JSON.stringify({ type: 'open_session', sessionId: 'web', userId: 'web' }));
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        nextPlayTime = audioCtx.currentTime;
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        log('disconnected');
+      };
+
+      ws.onmessage = async (evt) => {
+        if (typeof evt.data === 'string') {
+          const payload = JSON.parse(evt.data);
+          const type = payload.type;
+
+          if (type === 'transcript_partial' || type === 'transcript_final') {
+            document.getElementById('transcript').textContent = payload.text || '';
+          }
+          if (type === 'expression') {
+            document.getElementById('expression').textContent = JSON.stringify(payload);
+          }
+          if (type === 'tts_chunk') {
+            const data = payload.data || '';
+            const buffer = Uint8Array.from(atob(data), c => c.charCodeAt(0)).buffer;
+            if (!audioCtx) return;
+            const audioBuffer = await audioCtx.decodeAudioData(buffer.slice(0));
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioCtx.destination);
+            const startTime = Math.max(nextPlayTime, audioCtx.currentTime);
+            source.start(startTime);
+            nextPlayTime = startTime + audioBuffer.duration;
+            return;
+          }
+
+          log(JSON.stringify(payload));
+        }
+      };
+    };
+
+    document.getElementById('disconnectBtn').onclick = () => {
+      if (ws) ws.close();
+    };
+
+    document.getElementById('sendBtn').onclick = () => {
+      const text = document.getElementById('textInput').value.trim();
+      if (!text || !ws) return;
+      ws.send(JSON.stringify({ type: 'text_input', text }));
+    };
+  </script>
+</body>
+</html>

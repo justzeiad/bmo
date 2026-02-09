@@ -1,0 +1,16 @@
+﻿allowed:
+  - neutral
+  - happy
+  - excited
+  - curious
+  - thinking
+  - confused
+  - sad
+  - concerned
+  - sleepy
+
+ui_defaults:
+  happy: { eye: open, mouth: smile }
+  excited: { eye: wide, mouth: big_smile }
+  thinking: { eye: half, mouth: flat }
+  

@@ -1,0 +1,1 @@
+﻿# Optional REST endpoints placeholder
