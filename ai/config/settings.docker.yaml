@@ -16,8 +16,11 @@
     provider: whisper
     model: base
   tts:
-    provider: xtts
-    model: default
+    provider: piper
+    model: "ai/tts/models/en_GB-semaine-medium.onnx"
+    speaker: null
+    sample_rate: 22050
+    executable: piper
     stream_wav_chunks: true
 
 network:

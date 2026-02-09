@@ -1,7 +1,7 @@
 ﻿models:
   llm:
     provider: ollama
-    model: gemma3
+    model: llama3.2:1b
     host: http://localhost:11434
   vlm:
     provider: ollama
@@ -13,8 +13,8 @@
     provider: piper
     model: "ai/tts/models/en_GB-semaine-medium.onnx"
     speaker: null
-    sample_rate: 16000
-    executable: "C:\\Users\\justz\\Downloads\\piper_windows_amd64\\piper\\piper.exe"
+    sample_rate: 22050
+    executable: piper
     stream_wav_chunks: true
 
 network:

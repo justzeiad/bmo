@@ -1,68 +1,45 @@
-﻿import shutil
-import subprocess
-from typing import Iterator, Optional
+﻿from typing import Iterator, Optional
+import numpy as np
+
+try:
+    from piper.voice import PiperVoice
+except Exception as exc:  # pragma: no cover
+    PiperVoice = None
+    _IMPORT_ERROR = exc
+else:
+    _IMPORT_ERROR = None
+
 
 class PiperEngine:
+    _voice_cache = {}
+
     def __init__(
         self,
         model_path: str,
         speaker: Optional[int] = None,
         sample_rate: int = 16000,
         executable: str = "piper",
-        chunk_size: int = 4096,
+        use_cuda: bool = False,
     ):
+        if _IMPORT_ERROR is not None:
+            raise RuntimeError(f"piper-tts not installed or failed to import: {_IMPORT_ERROR}")
+        if not model_path:
+            raise RuntimeError("Piper model path is required")
+
         self.model_path = model_path
         self.speaker = speaker
         self.sample_rate = sample_rate
-        self.executable = executable
-        self.chunk_size = chunk_size
+        self.use_cuda = use_cuda
 
-        if not shutil.which(self.executable):
-            raise RuntimeError(f"Piper executable not found: {self.executable}")
-        if not self.model_path:
-            raise RuntimeError("Piper model path is required")
+        cache_key = (model_path, use_cuda)
+        if cache_key not in self._voice_cache:
+            self._voice_cache[cache_key] = PiperVoice.load(model_path, use_cuda=use_cuda)
+        self.voice = self._voice_cache[cache_key]
 
     def stream(self, text: str) -> Iterator[bytes]:
         if not text:
             return
-        cmd = [
-            self.executable,
-            "-m",
-            self.model_path,
-            "--output-raw",
-            "--sample_rate",
-            str(self.sample_rate),
-        ]
-        if self.speaker is not None:
-            cmd += ["--speaker", str(self.speaker)]
-
-        proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        try:
-            assert proc.stdin is not None
-            assert proc.stdout is not None
-            proc.stdin.write(text.encode("utf-8"))
-            proc.stdin.close()
-
-            while True:
-                chunk = proc.stdout.read(self.chunk_size)
-                if not chunk:
-                    break
-                yield chunk
-
-            stderr = proc.stderr.read() if proc.stderr else b""
-            code = proc.wait()
-            if code != 0:
-                raise RuntimeError(f"Piper failed ({code}): {stderr.decode('utf-8', 'ignore')}")
-        finally:
-            try:
-                if proc.stdout:
-                    proc.stdout.close()
-                if proc.stderr:
-                    proc.stderr.close()
-            except Exception:
-                pass
+        for chunk in self.voice.synthesize(text):
+            # Convert float32 [-1,1] to int16 PCM
+            audio = np.clip(chunk.audio_float_array * 32767.0, -32768, 32767).astype(np.int16)
+            yield audio.tobytes()

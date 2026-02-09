@@ -5,3 +5,4 @@ pyyaml
 faster-whisper
 numpy
 websockets
+piper-tts
