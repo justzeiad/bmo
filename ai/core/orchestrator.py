@@ -3,6 +3,12 @@ import re
 
 _EMOTION_LINE_RE = re.compile(r"^\s*EMOTION:\s*.*$", re.I)
 
+_FALLBACKS = [
+    "I'm here. What would you like to talk about?",
+    "I'm listening. What's on your mind?",
+    "Tell me what you'd like to chat about.",
+]
+
 class Orchestrator:
     def __init__(self, dialog_manager, llm_client, tts_streamer, expression_engine, voice_formatter):
         self.dialog_manager = dialog_manager
@@ -27,11 +33,11 @@ class Orchestrator:
         if _EMOTION_LINE_RE.match(assistant_text.strip()):
             assistant_text = ""
 
-        if not assistant_text.strip() and not session.used_empty_fallback:
-            assistant_text = "I'm here. What would you like to talk about?"
+        if not assistant_text.strip():
+            assistant_text = _FALLBACKS[session.fallback_count % len(_FALLBACKS)]
+            session.fallback_count += 1
             if emotion.get("emotion") in {"thinking", "neutral"}:
                 emotion = {"emotion": "curious", "intensity": 0.5}
-            session.used_empty_fallback = True
 
         # Update session history
         session.add_turn("user", text)

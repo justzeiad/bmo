@@ -7,7 +7,7 @@ class Session:
     user_id: str
     turns: List[Dict] = field(default_factory=list)
     max_turns: int = 8
-    used_empty_fallback: bool = False
+    fallback_count: int = 0
 
     def add_turn(self, role: str, content: str) -> None:
         self.turns.append({"role": role, "content": content})
