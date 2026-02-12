@@ -48,3 +48,6 @@ models/
 # Temp
 *.tmp
 *.bak
+
+#bmo-dataset
+ai/tts/bmo-tts-dataset

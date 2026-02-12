@@ -17,7 +17,7 @@
     model: base
   tts:
     provider: piper
-    model: "ai/tts/models/en_GB-semaine-medium.onnx"
+    model: "ai/tts/models/en_US-bmo_voice.onnx"
     speaker: null
     sample_rate: 22050
     executable: piper
