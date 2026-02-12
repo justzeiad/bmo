@@ -1,6 +1,7 @@
 ﻿import base64
 import json
 import os
+import time
 from typing import Optional
 
 import yaml
@@ -157,13 +158,20 @@ async def websocket_endpoint(websocket: WebSocket):
                 await _send_json(websocket, {"type": "transcript_final", "text": final_text})
                 if session is None:
                     session = Session(session_id="session", user_id="user")
-                await _handle_user_text(websocket, orchestrator, session, final_text)
+                if final_text.strip():
+                    await _handle_user_text(websocket, orchestrator, session, final_text)
+                else:
+                    await _send_json(websocket, {"type": "error", "code": "empty_text", "message": "No speech detected"})
                 continue
 
             if msg_type == "text_input":
                 if session is None:
                     session = Session(session_id="session", user_id="user")
-                await _handle_user_text(websocket, orchestrator, session, payload.get("text", ""))
+                text = payload.get("text", "")
+                if not text.strip():
+                    await _send_json(websocket, {"type": "error", "code": "empty_text", "message": "Empty text"})
+                    continue
+                await _handle_user_text(websocket, orchestrator, session, text)
                 continue
 
             if msg_type == "image_upload_ready":
@@ -180,16 +188,24 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 async def _handle_user_text(websocket: WebSocket, orchestrator: Orchestrator, session: Session, text: str) -> None:
+    turn_started = time.perf_counter()
     assistant_text, expression, tts_stream = orchestrator.handle_user_text(session, text)
+    llm_done = time.perf_counter()
+
     await _send_json(websocket, {"type": "assistant_text", "text": assistant_text})
     await _send_json(websocket, {"type": "expression", **expression})
 
     seq = 0
     sent_audio = False
+    tts_started = None
     for chunk in tts_stream:
         sent_audio = True
+        if tts_started is None:
+            tts_started = time.perf_counter()
+
         amp = rms_amplitude(chunk)
         await _send_json(websocket, {"type": "expression", **{**expression, "speaking": True, "mouth_amplitude": amp}})
+
         out_chunk = chunk
         if TTS_CONFIG.get("stream_wav_chunks", False):
             out_chunk = pcm16le_to_wav_bytes(
@@ -204,6 +220,12 @@ async def _handle_user_text(websocket: WebSocket, orchestrator: Orchestrator, se
         await _send_json(websocket, {"type": "expression", **{**expression, "speaking": False, "mouth_amplitude": 0.0}})
     else:
         await _send_json(websocket, {"type": "expression", **{**expression, "speaking": False}})
+
+    done = time.perf_counter()
+    llm_ms = int((llm_done - turn_started) * 1000)
+    tts_start_ms = int((tts_started - turn_started) * 1000) if tts_started is not None else -1
+    total_ms = int((done - turn_started) * 1000)
+    logger.info("turn timings llm_ms=%d tts_start_ms=%d total_ms=%d", llm_ms, tts_start_ms, total_ms)
 
 
 async def _send_json(websocket: WebSocket, payload: dict) -> None:

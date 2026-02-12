@@ -1,13 +1,15 @@
-﻿from typing import Tuple
+﻿from typing import Iterator, Tuple
 import re
 
 _EMOTION_LINE_RE = re.compile(r"^\s*EMOTION:\s*.*$", re.I)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 _FALLBACKS = [
     "I'm here. What would you like to talk about?",
     "I'm listening. What's on your mind?",
     "Tell me what you'd like to chat about.",
 ]
+
 
 class Orchestrator:
     def __init__(self, dialog_manager, llm_client, tts_streamer, expression_engine, voice_formatter):
@@ -44,10 +46,25 @@ class Orchestrator:
         session.add_turn("assistant", assistant_text)
 
         spoken_text = self.voice_formatter.format_text(assistant_text)
-        tts_stream = self.tts_streamer.stream(spoken_text)
+        tts_stream = self._stream_tts_by_sentence(spoken_text)
         expression = self.expression_engine.from_emotion(
             emotion.get("emotion", "thinking"),
             emotion.get("intensity", 0.5),
             speaking=True,
         )
         return assistant_text, expression, tts_stream
+
+    def _stream_tts_by_sentence(self, spoken_text: str) -> Iterator[bytes]:
+        if not spoken_text:
+            return iter(())
+
+        parts = [p.strip() for p in _SENTENCE_SPLIT_RE.split(spoken_text) if p.strip()]
+        if not parts:
+            parts = [spoken_text]
+
+        def _generator() -> Iterator[bytes]:
+            for sentence in parts:
+                for chunk in self.tts_streamer.stream(sentence):
+                    yield chunk
+
+        return _generator()

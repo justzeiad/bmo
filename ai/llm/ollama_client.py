@@ -1,7 +1,10 @@
 ﻿from typing import Dict, List, Optional
 import base64
 import httpx
+import time
+
 from .emotion_parser import extract_emotion_block
+
 
 class LLMClient:
     def __init__(self, model: str = "gemma3", host: str = "http://localhost:11434", options: Optional[Dict] = None):
@@ -10,6 +13,32 @@ class LLMClient:
         self.options = options or {}
 
     def generate(self, messages: List[Dict], images: Optional[List[bytes]] = None) -> Dict:
+        started = time.perf_counter()
+        attempts = 2
+        current_messages = list(messages)
+        cleaned = ""
+        emotion = None
+        last_raw = ""
+
+        for attempt in range(attempts):
+            text = self._request_once(current_messages, images=images)
+            last_raw = text
+            emotion, cleaned = extract_emotion_block(text)
+            if cleaned.strip():
+                break
+            if attempt < attempts - 1:
+                # Repair prompt for models that output only EMOTION or empty text.
+                current_messages = current_messages + [
+                    {"role": "system", "content": "Respond with one short sentence before the EMOTION line."}
+                ]
+
+        if emotion is None:
+            emotion = self._fallback_emotion(cleaned or last_raw)
+
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return {"text": cleaned, "emotion": emotion, "latency_ms": elapsed_ms}
+
+    def _request_once(self, messages: List[Dict], images: Optional[List[bytes]] = None) -> str:
         payload = {
             "model": self.model,
             "messages": self._attach_images(messages, images),
@@ -18,10 +47,8 @@ class LLMClient:
         }
 
         with httpx.Client(timeout=60.0) as client:
-            # Try Ollama native chat
             resp = client.post(f"{self.host}/api/chat", json=payload)
             if resp.status_code == 404:
-                # Fallback to /api/generate for older Ollama builds
                 if images:
                     raise RuntimeError("Ollama /api/generate does not support images in this client.")
                 prompt = self._messages_to_prompt(messages)
@@ -30,7 +57,6 @@ class LLMClient:
                     json={"model": self.model, "prompt": prompt, "stream": False},
                 )
             if resp.status_code == 404:
-                # Fallback to OpenAI-compatible endpoints
                 resp = client.post(
                     f"{self.host}/v1/chat/completions",
                     json={"model": self.model, "messages": payload["messages"], "stream": False},
@@ -47,33 +73,29 @@ class LLMClient:
             data = resp.json()
 
         if "message" in data:
-            text = data.get("message", {}).get("content", "")
-        elif "response" in data:
-            text = data.get("response", "")
-        else:
-            # OpenAI-compatible responses
-            choices = data.get("choices", [])
-            if choices and "message" in choices[0]:
-                text = choices[0]["message"].get("content", "")
-            elif choices and "text" in choices[0]:
-                text = choices[0].get("text", "")
-            else:
-                text = ""
-        emotion, cleaned = extract_emotion_block(text)
-        if emotion is None:
-            emotion = self._fallback_emotion(cleaned)
-        return {"text": cleaned, "emotion": emotion}
+            return data.get("message", {}).get("content", "")
+        if "response" in data:
+            return data.get("response", "")
+
+        choices = data.get("choices", [])
+        if choices and "message" in choices[0]:
+            return choices[0]["message"].get("content", "")
+        if choices and "text" in choices[0]:
+            return choices[0].get("text", "")
+        return ""
 
     def _attach_images(self, messages: List[Dict], images: Optional[List[bytes]]) -> List[Dict]:
         if not images:
             return messages
         if not messages:
             return [{"role": "user", "content": "", "images": [self._b64(i) for i in images]}]
+
         updated = [dict(m) for m in messages]
         last = updated[-1]
         if last.get("role") != "user":
             updated.append({"role": "user", "content": "", "images": [self._b64(i) for i in images]})
             return updated
+
         last = dict(last)
         last["images"] = [self._b64(i) for i in images]
         updated[-1] = last
