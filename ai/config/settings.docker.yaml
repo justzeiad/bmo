@@ -5,11 +5,11 @@
     host: http://ollama:11434
     keep_alive: "30m"
     options:
-      temperature: 0.25
-      top_p: 0.9
+      temperature: 0.22
+      top_p: 0.88
       repeat_penalty: 1.1
-      num_predict: 80
-      num_ctx: 2048
+      num_predict: 56
+      num_ctx: 1536
     warmup: true
     warmup_prompt: "ping"
   vlm:
@@ -21,7 +21,7 @@
     device: cpu
     compute_type: int8
     sample_rate: 16000
-    partial_seconds: 0.8
+    partial_seconds: 0.5
     max_partial_seconds: 8.0
     language: en
     warmup: true
@@ -37,8 +37,8 @@
     noise_scale: 0.45
     noise_w_scale: 0.55
     volume: 0.95
-    stream_wav_chunks: true
-    ws_chunk_bytes: 8192
+    stream_wav_chunks: false
+    ws_chunk_bytes: 4096
 
 network:
   host: 0.0.0.0

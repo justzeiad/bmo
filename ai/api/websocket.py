@@ -52,6 +52,8 @@ TTS_CONFIG = SETTINGS.get("models", {}).get("tts", {})
 LLM_CONFIG = SETTINGS.get("models", {}).get("llm", {})
 STT_CONFIG = SETTINGS.get("models", {}).get("stt", {})
 TTS_WS_CHUNK_BYTES = int(TTS_CONFIG.get("ws_chunk_bytes", 8192))
+TTS_SAMPLE_RATE = int(TTS_CONFIG.get("sample_rate", 16000))
+TTS_STREAM_WAV = bool(TTS_CONFIG.get("stream_wav_chunks", False))
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
 
 if os.path.isdir(FRONTEND_DIR):
@@ -294,13 +296,24 @@ async def _handle_user_text(websocket: WebSocket, orchestrator: Orchestrator, se
             last_amp = amp
 
         out_chunk = chunk_bytes
-        if TTS_CONFIG.get("stream_wav_chunks", False):
+        chunk_format = "pcm16"
+        if TTS_STREAM_WAV:
             out_chunk = pcm16le_to_wav_bytes(
                 chunk_bytes,
-                sample_rate=int(TTS_CONFIG.get("sample_rate", 16000)),
+                sample_rate=TTS_SAMPLE_RATE,
                 channels=1,
             )
-        await _send_json(websocket, {"type": "tts_chunk", "seq": seq, "data": base64.b64encode(out_chunk).decode("ascii")})
+            chunk_format = "wav"
+        await _send_json(
+            websocket,
+            {
+                "type": "tts_chunk",
+                "seq": seq,
+                "format": chunk_format,
+                "sample_rate": TTS_SAMPLE_RATE,
+                "data": base64.b64encode(out_chunk).decode("ascii"),
+            },
+        )
         seq += 1
         return len(chunk_bytes)
 

@@ -38,10 +38,11 @@ const LOG_VERBOSE = false;
 
 const TARGET_SAMPLE_RATE = 16000;
 const MIC_BUFFER_SIZE = 4096;
-const SILENCE_MS = 950;
-const MIN_TURN_MS = 700;
+const SILENCE_MS = 650;
+const MIN_TURN_MS = 450;
 const SPEECH_RMS_THRESHOLD = 0.0065;
 const THINKING_TIMEOUT_MS = 10000;
+const PLAYBACK_LEAD_SEC = 0.035;
 
 const el = (id) => document.getElementById(id);
 
@@ -548,6 +549,19 @@ async function maybeResumeLiveListening() {
   await startMic();
 }
 
+function pcm16ToAudioBuffer(bytes, sampleRate) {
+  const dv = new DataView(bytes);
+  const samples = new Float32Array(bytes.byteLength / 2);
+  let j = 0;
+  for (let i = 0; i < bytes.byteLength; i += 2) {
+    samples[j++] = dv.getInt16(i, true) / 32768;
+  }
+  const sr = Number(sampleRate) > 0 ? Number(sampleRate) : 22050;
+  const buf = audioCtx.createBuffer(1, samples.length, sr);
+  buf.copyToChannel(samples, 0);
+  return buf;
+}
+
 function computeBufferRms(audioBuffer) {
   const channel = audioBuffer.getChannelData(0);
   let acc = 0;
@@ -694,8 +708,15 @@ el("connectBtn").onclick = () => {
       holdSpeakingFromTts();
       await resumeAudio();
 
-      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0)).buffer;
-      const audioBuffer = await audioCtx.decodeAudioData(bytes.slice(0));
+      const raw = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      const format = String(payload.format || "wav").toLowerCase();
+      let audioBuffer;
+      const rawBuffer = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+      if (format === "pcm16") {
+        audioBuffer = pcm16ToAudioBuffer(rawBuffer, payload.sample_rate);
+      } else {
+        audioBuffer = await audioCtx.decodeAudioData(rawBuffer);
+      }
       const source = audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(ttsGain);
@@ -711,7 +732,7 @@ el("connectBtn").onclick = () => {
       expressionAmp = Math.max(expressionAmp * 0.55, computeBufferRms(audioBuffer));
       updateMouthMeter(expressionAmp);
 
-      const startTime = Math.max(nextPlayTime, audioCtx.currentTime);
+      const startTime = Math.max(nextPlayTime, audioCtx.currentTime + PLAYBACK_LEAD_SEC);
       source.start(startTime);
       nextPlayTime = startTime + audioBuffer.duration;
       return;
