@@ -29,9 +29,14 @@
   tts:
     provider: piper
     model: "ai/tts/models/en_US-bmo_voice.onnx"
-    speaker: True
+    speaker: null
     sample_rate: 22050
     executable: piper
+    split_sentences: false
+    length_scale: 1.08
+    noise_scale: 0.45
+    noise_w_scale: 0.55
+    volume: 0.95
     stream_wav_chunks: true
     ws_chunk_bytes: 8192
 

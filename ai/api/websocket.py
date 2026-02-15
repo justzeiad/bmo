@@ -44,8 +44,10 @@ def _load_yaml(path: str) -> dict:
 
 SETTINGS_PATH = os.getenv("BMO_SETTINGS", _config_path("settings.yaml"))
 PROMPTS_PATH = os.getenv("BMO_PROMPTS", _config_path("prompts.yaml"))
+LINEUPS_PATH = os.getenv("BMO_LINEUPS", _config_path("lineups.yaml"))
 SETTINGS = _load_yaml(SETTINGS_PATH)
 PROMPTS = _load_yaml(PROMPTS_PATH)
+LINEUPS = _load_yaml(LINEUPS_PATH)
 TTS_CONFIG = SETTINGS.get("models", {}).get("tts", {})
 LLM_CONFIG = SETTINGS.get("models", {}).get("llm", {})
 STT_CONFIG = SETTINGS.get("models", {}).get("stt", {})
@@ -97,7 +99,15 @@ def build_orchestrator() -> Orchestrator:
         tts_streamer = XTTSEngine()
     expression_engine = ExpressionEngine()
     voice_formatter = VoiceFormatter()
-    return Orchestrator(dialog_manager, llm_client, tts_streamer, expression_engine, voice_formatter)
+    return Orchestrator(
+        dialog_manager,
+        llm_client,
+        tts_streamer,
+        expression_engine,
+        voice_formatter,
+        split_tts_sentences=bool(tts_cfg.get("split_sentences", False)),
+        lineups=LINEUPS,
+    )
 
 
 @app.on_event("startup")

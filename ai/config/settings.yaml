@@ -32,10 +32,11 @@
     speaker: null
     sample_rate: 22050
     executable: piper
-    length_scale: 1
-    noise_scale: 0.667
-    noise_w_scale: 0.8
-    volume: 1.0
+    split_sentences: false
+    length_scale: 1.08
+    noise_scale: 0.45
+    noise_w_scale: 0.55
+    volume: 0.95
     stream_wav_chunks: true
     ws_chunk_bytes: 8192
 
