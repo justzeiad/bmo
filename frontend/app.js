@@ -651,7 +651,7 @@ el("connectBtn").onclick = () => {
           syncFaceState();
           maybeResumeLiveListening();
         }
-      }, 2500);
+      }, 1200);
       syncFaceState();
     }
 

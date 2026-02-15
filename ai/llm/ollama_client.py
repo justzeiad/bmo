@@ -9,6 +9,12 @@ from .emotion_parser import extract_emotion_block
 _SPECIAL_TOKEN_RE = re.compile(r"<\|[^|>]+?\|>")
 _ROLE_PREFIX_RE = re.compile(r"^\s*(assistant|bmo)\s*[:\-]\s*", re.I)
 _MULTI_NEWLINE_RE = re.compile(r"\n{3,}")
+_LEADING_NARRATION_RE = re.compile(r"^\s*(?:assistant|bmo)\b[^:\n]{0,180}:\s*", re.I)
+_ORPHAN_LABEL_LINE_RE = re.compile(r"^\s*(?:assistant|bmo)\b[^:\n]{0,140}:\s*$", re.I | re.M)
+_INCOMPLETE_END_RE = re.compile(
+    r"(and|or|but|so|because|if|when|while|to|for|with|of|in|on|at|from|about|then)$",
+    re.I,
+)
 
 
 class LLMClient:
@@ -110,11 +116,14 @@ class LLMClient:
         cleaned = text.replace("\r\n", "\n")
         cleaned = _SPECIAL_TOKEN_RE.sub("", cleaned).strip()
         cleaned = _ROLE_PREFIX_RE.sub("", cleaned)
+        cleaned = _LEADING_NARRATION_RE.sub("", cleaned)
+        cleaned = _ORPHAN_LABEL_LINE_RE.sub("", cleaned)
 
         lines = [ln.strip() for ln in cleaned.split("\n")]
         if lines and lines[0].lower() in {"assistant", "bmo"}:
             lines = lines[1:]
         cleaned = "\n".join(lines).strip()
+        cleaned = cleaned.strip(" \"'")
         cleaned = _MULTI_NEWLINE_RE.sub("\n\n", cleaned)
         return cleaned
 

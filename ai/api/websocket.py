@@ -51,6 +51,7 @@ LINEUPS = _load_yaml(LINEUPS_PATH)
 TTS_CONFIG = SETTINGS.get("models", {}).get("tts", {})
 LLM_CONFIG = SETTINGS.get("models", {}).get("llm", {})
 STT_CONFIG = SETTINGS.get("models", {}).get("stt", {})
+LLM_HISTORY_TURNS = int(LLM_CONFIG.get("history_turns", 6))
 TTS_WS_CHUNK_BYTES = int(TTS_CONFIG.get("ws_chunk_bytes", 8192))
 TTS_SAMPLE_RATE = int(TTS_CONFIG.get("sample_rate", 16000))
 TTS_STREAM_WAV = bool(TTS_CONFIG.get("stream_wav_chunks", False))
@@ -199,13 +200,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 session = Session(
                     session_id=payload.get("sessionId", "session"),
                     user_id=payload.get("userId", "user"),
+                    max_turns=LLM_HISTORY_TURNS,
                 )
                 await _send_json(websocket, {"type": "open_session", "ok": True})
                 continue
 
             if msg_type == "start_speech":
                 if session is None:
-                    session = Session(session_id="session", user_id="user")
+                    session = Session(session_id="session", user_id="user", max_turns=LLM_HISTORY_TURNS)
                 stt_streamer = STTStreamer(
                     model_size=STT_CONFIG.get("model", "base"),
                     device=STT_CONFIG.get("device", "cpu"),
@@ -225,7 +227,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 stt_streamer = None
                 await _send_json(websocket, {"type": "transcript_final", "text": final_text})
                 if session is None:
-                    session = Session(session_id="session", user_id="user")
+                    session = Session(session_id="session", user_id="user", max_turns=LLM_HISTORY_TURNS)
                 if final_text.strip():
                     await _handle_user_text(websocket, orchestrator, session, final_text)
                 else:
@@ -234,7 +236,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             if msg_type == "text_input":
                 if session is None:
-                    session = Session(session_id="session", user_id="user")
+                    session = Session(session_id="session", user_id="user", max_turns=LLM_HISTORY_TURNS)
                 text = payload.get("text", "")
                 if not text.strip():
                     await _send_json(websocket, {"type": "error", "code": "empty_text", "message": "Empty text"})

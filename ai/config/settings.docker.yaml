@@ -3,12 +3,13 @@
     provider: ollama
     model: llama3.2:1b
     host: http://ollama:11434
-    keep_alive: "30m"
+    keep_alive: null
+    history_turns: 6
     options:
-      temperature: 0.22
-      top_p: 0.88
-      repeat_penalty: 1.1
-      num_predict: 56
+      temperature: 0.28
+      top_p: 0.9
+      repeat_penalty: 1.07
+      num_predict: 72
       num_ctx: 1536
     warmup: true
     warmup_prompt: "ping"
@@ -17,7 +18,7 @@
     model: moondream2
   stt:
     provider: whisper
-    model: tiny.en
+    model: base
     device: cpu
     compute_type: int8
     sample_rate: 16000

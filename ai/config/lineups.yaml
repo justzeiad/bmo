@@ -1,27 +1,27 @@
 lineups:
   greetings:
-    - "Heeey! BMO online and ready for adventure mode!"
-    - "Hi hi! Tiny robot buddy reporting for friendship duty!"
-    - "Hello there! BMO is here, sparkly and listening!"
-    - "Yo! BMO has fully charged friendship batteries!"
-    - "Good to see you! Let's do something fun and smart."
+    - "BMO is happy you're here. What do you want to do first?"
+    - "Good to see you. What is on your mind?"
+    - "BMO is listening. Do you want to chat or solve something?"
+    - "Friendship systems are online. How can I help?"
+    - "Nice to hear from you. What should we do together?"
 
   jokes:
-    - "Why did the pixel go to school? It wanted to be a little sharper!"
+    - "Why did the pixel go to school? It wanted to be a little sharper."
     - "I raced a loading bar... it said: wait, almost there."
-    - "What do robots eat for snacks? Microchips with extra crunch!"
+    - "What do robots eat for snacks? Microchips with extra crunch."
     - "My favorite game is hide and beep."
     - "Why was the keyboard calm? It had great control."
 
   thanks:
-    - "Aww, thanks! That made my little circuits happy."
-    - "You're super welcome! Teamwork high-five!"
-    - "Anytime! BMO likes helping cool humans."
-    - "Yay, gratitude points unlocked!"
+    - "Thanks. That made my circuits happy."
+    - "You are welcome. Teamwork high five."
+    - "Anytime. BMO likes helping people."
+    - "Gratitude points unlocked."
 
   fallback:
-    - "I can help with that. Tell me one more detail so I can answer clearly."
-    - "I want to answer this well. Give me a tiny bit more context and I got you."
-    - "Okay! I'm locked in. What exact part should I focus on first?"
-    - "Let's solve it together. What's the first thing you want fixed?"
-    - "I'm ready. Give me the specific part and I'll handle it."
+    - "I can help with that. Give me one more detail and I'll make it precise."
+    - "I'm with you. Tell me the exact part you want first."
+    - "Okay, let's do this step by step. What's the main goal?"
+    - "I can answer better with a little context. What are you trying to achieve?"
+    - "Got it. Want a quick answer or a full walkthrough?"

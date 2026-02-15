@@ -6,6 +6,14 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _GREET_RE = re.compile(r"\b(hi|hello|hey|yo|good morning|good afternoon|good evening|sup)\b", re.I)
 _JOKE_RE = re.compile(r"\b(joke|funny|make me laugh|laugh)\b", re.I)
 _THANKS_RE = re.compile(r"\b(thanks|thank you|thx|appreciate it)\b", re.I)
+_DIRECT_GREET_RE = re.compile(r"^\s*(hi|hello|hey|yo|sup|good morning|good afternoon|good evening)[!. ]*$", re.I)
+_DIRECT_JOKE_RE = re.compile(
+    r"^\s*((tell me|give me)\s+)?(a\s+)?(quick\s+)?(joke|something funny|a funny one|make me laugh)[!. ]*$",
+    re.I,
+)
+_DIRECT_THANKS_RE = re.compile(r"^\s*(thanks|thank you|thx|appreciate it|ty)[!. ]*$", re.I)
+_COMPLEX_QUERY_RE = re.compile(r"\b(about|with|for|because|if|when|while|and|or|friends?)\b", re.I)
+_REQUESTY_RE = re.compile(r"\b(what|why|how|when|where|who|can|could|would|please|help|tell|explain|build|fix)\b", re.I)
 
 _DEFAULT_LINEUPS: Dict[str, List[str]] = {
     "fallback": [
@@ -14,19 +22,19 @@ _DEFAULT_LINEUPS: Dict[str, List[str]] = {
         "Okay! I'm locked in. What exact part should I focus on first?",
     ],
     "greetings": [
-        "Heeey! BMO online and ready for adventure mode!",
-        "Hi hi! Tiny robot buddy reporting for friendship duty!",
-        "Hello there! BMO is here, sparkly and listening!",
+        "BMO is online and ready for adventure mode.",
+        "BMO is here and ready to help.",
+        "BMO is listening. What do you want to do?",
     ],
     "jokes": [
-        "Why did the pixel go to school? It wanted to be a little sharper!",
+        "Why did the pixel go to school? It wanted to be a little sharper.",
         "I tried to race a loading bar... it said, hold on, almost there.",
-        "What do robots eat for snacks? Microchips with extra crunch!",
+        "What do robots eat for snacks? Microchips with extra crunch.",
     ],
     "thanks": [
-        "Aww, thanks! That made my little circuits happy.",
-        "You're super welcome! Teamwork high-five!",
-        "Anytime! BMO likes helping cool humans.",
+        "Thanks. That made my circuits happy.",
+        "You are welcome. Teamwork high five.",
+        "Anytime. BMO likes helping people.",
     ],
 }
 
@@ -125,22 +133,24 @@ class Orchestrator:
         if not normalized:
             return None
 
-        if len(session.turns) <= 1 and len(normalized) <= 60 and _GREET_RE.search(normalized):
+        # Greeting-like small talk ("hello my friends") should not fall back to a dull clarify prompt.
+        if len(normalized) <= 80 and _GREET_RE.search(normalized) and not _REQUESTY_RE.search(normalized):
+            return self._pick_line(session, "greetings"), {"emotion": "happy", "intensity": 0.68}
+
+        if len(session.turns) <= 1 and len(normalized) <= 40 and _DIRECT_GREET_RE.match(normalized):
             return self._pick_line(session, "greetings"), {"emotion": "happy", "intensity": 0.72}
-        if _JOKE_RE.search(normalized):
+        if _DIRECT_JOKE_RE.match(normalized) and not _COMPLEX_QUERY_RE.search(normalized):
             return self._pick_line(session, "jokes"), {"emotion": "excited", "intensity": 0.78}
-        if _THANKS_RE.search(normalized):
+        if _DIRECT_THANKS_RE.match(normalized):
             return self._pick_line(session, "thanks"), {"emotion": "happy", "intensity": 0.62}
+
+        # Explicitly avoid lineups for richer requests like "tell me a joke about ..."
+        if _JOKE_RE.search(normalized) or _GREET_RE.search(normalized) or _THANKS_RE.search(normalized):
+            return None
         return None
 
     def _fallback_reply(self, user_text: str, session) -> str:
-        base = self._pick_line(session, "fallback")
-        snippet = " ".join((user_text or "").strip().split())
-        if not snippet:
-            return base
-        if len(snippet) > 90:
-            snippet = snippet[:90].rstrip() + "..."
-        return f"{base} I heard: \"{snippet}\"."
+        return self._pick_line(session, "fallback")
 
     def _stream_tts_by_sentence(self, spoken_text: str) -> Iterator[bytes]:
         if not spoken_text:
