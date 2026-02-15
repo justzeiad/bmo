@@ -5,11 +5,11 @@
     host: http://localhost:11434
     keep_alive: "30m"
     options:
-      temperature: 0.25
-      top_p: 0.9
-      repeat_penalty: 1.1
-      num_predict: 72
-      num_ctx: 2048
+      temperature: 0.55
+      top_p: 0.85
+      repeat_penalty: 1.15
+      num_predict: 128
+      num_ctx: 4096
     warmup: true
     warmup_prompt: "ping"
   vlm:

@@ -27,6 +27,7 @@ let faceState = "warmup";
 let faceFrameIndex = 0;
 let currentEmotion = "neutral";
 let currentIntensity = 0.3;
+let lastSyncedEmotion = "neutral";
 let errorUntil = 0;
 let ttsSpeakingHoldTimer = null;
 let expressionAmp = 0;
@@ -64,6 +65,34 @@ const EMOTION_COLOR = {
   concerned: "#ff8e84",
   sleepy: "#d2c4ff",
 };
+
+/* ─── preload all face frames to eliminate network jank ─── */
+const _imageCache = {};
+const PRELOAD_QUEUE = [
+  ...FACE_FRAMES.warmup,
+  ...FACE_FRAMES.idle,
+  ...FACE_FRAMES.listening,
+  ...FACE_FRAMES.thinking,
+  ...FACE_FRAMES.speaking,
+  ...FACE_FRAMES.error
+];
+
+// Load images sequentially to avoid flooding network
+function preloadNext(index = 0) {
+  if (index >= PRELOAD_QUEUE.length) return;
+  const src = PRELOAD_QUEUE[index];
+  if (!_imageCache[src]) {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => preloadNext(index + 1);
+    img.onerror = () => preloadNext(index + 1);
+    _imageCache[src] = img;
+  } else {
+    preloadNext(index + 1);
+  }
+}
+// Start preloading
+setTimeout(() => preloadNext(0), 100);
 
 const log = (msg) => {
   const t = el("log");
@@ -129,7 +158,7 @@ function animationSpeedFor(state, emotion, intensity) {
   let base = 300;
   if (state === "speaking") base = 120;
   if (state === "listening") base = 320;
-  if (state === "thinking") base = 260;
+  if (state === "thinking") base = 350;
   if (emotion === "excited") base -= 40;
   if (emotion === "sleepy") base += 80;
   if (intensity > 0.7) base -= 20;
@@ -152,9 +181,17 @@ function setTurnIndicator(mode) {
 
 function applyEmotionStyle(emotion, intensity) {
   const body = document.body;
+  const prevEmotion = body.dataset.emotion;
   body.dataset.emotion = emotion;
   body.style.setProperty("--emotion-color", EMOTION_COLOR[emotion] || EMOTION_COLOR.neutral);
   body.style.setProperty("--emotion-intensity", String(intensity));
+
+  // Add a brief transition class when the emotion color actually changes
+  if (prevEmotion !== emotion) {
+    const stage = el("stageCard");
+    stage.classList.add("emotion-shift");
+    setTimeout(() => stage.classList.remove("emotion-shift"), 400);
+  }
 }
 
 function deriveFaceState() {
@@ -171,13 +208,17 @@ function deriveFaceState() {
 
   const now = Date.now();
   if (now < errorUntil) return "error";
-  // While waiting on the next reply, prefer thinking unless audio is actively playing.
-  if (waitingForAssistant && activeAudioSources.length === 0 && Date.now() >= speakingLockUntil) {
+
+  // Speaking has highest priority (visual feedback for audio)
+  if (assistantSpeaking) return "speaking";
+
+  // If we're waiting for BMO and not speaking/listening, show thinking
+  if (waitingForAssistant && activeAudioSources.length === 0) {
     return "thinking";
   }
-  if (assistantSpeaking) return "speaking";
+
   if (talking) return "listening";
-  if (waitingForAssistant) return "thinking";
+
   return "idle";
 }
 
@@ -192,8 +233,11 @@ function syncFaceState(force = false) {
   el("emotionState").textContent = `${currentEmotion} ${Math.round(currentIntensity * 100)}%`;
 
   const speed = animationSpeedFor(state, currentEmotion, currentIntensity);
-  if (!force && state === faceState && faceTimer) return;
+  // Restart animation when face state OR emotion changes (emotion affects speed)
+  const emotionChanged = currentEmotion !== lastSyncedEmotion;
+  if (!force && state === faceState && !emotionChanged && faceTimer) return;
 
+  lastSyncedEmotion = currentEmotion;
   faceState = state;
   faceFrameIndex = 0;
   stopFaceAnimation();
@@ -202,9 +246,23 @@ function syncFaceState(force = false) {
   const frames = FACE_FRAMES[state] || FACE_FRAMES.idle;
   if (frames.length <= 1) return;
 
+  // For frames with 3+ images, play them as a ping-pong (1→2→3→4→3→2→1…)
+  // so the face looks side-to-side smoothly instead of jumping back to frame 1.
+  let sequence;
+  if (frames.length >= 3) {
+    sequence = [...Array(frames.length).keys()];
+    // Add the middle frames in reverse: [0,1,2,3] → [0,1,2,3,2,1]
+    for (let i = frames.length - 2; i >= 1; i--) {
+      sequence.push(i);
+    }
+  } else {
+    sequence = [0, 1];
+  }
+  let seqIdx = 0;
+
   faceTimer = setInterval(() => {
-    faceFrameIndex = (faceFrameIndex + 1) % frames.length;
-    renderFaceFrame(faceFrameIndex);
+    seqIdx = (seqIdx + 1) % sequence.length;
+    renderFaceFrame(sequence[seqIdx]);
   }, speed);
 }
 
@@ -242,6 +300,8 @@ function updateFaceFromExpression(payload) {
   const incomingEmotion = String(payload.emotion || "neutral").toLowerCase();
   const incomingIntensity = Math.max(0, Math.min(1, Number(payload.intensity ?? 0.3)));
 
+  const emotionChanged = incomingEmotion && incomingEmotion !== currentEmotion;
+
   if (incomingEmotion) {
     currentEmotion = incomingEmotion;
     currentIntensity = incomingIntensity;
@@ -270,7 +330,8 @@ function updateFaceFromExpression(payload) {
     maybeResumeLiveListening();
   }
 
-  syncFaceState();
+  // Force animation restart when emotion changes so speed/style updates immediately
+  syncFaceState(emotionChanged);
 }
 
 function smoothStopAssistantPlayback() {
@@ -296,7 +357,7 @@ function stopAssistantPlayback() {
     ttsSpeakingHoldTimer = null;
   }
   for (const source of activeAudioSources) {
-    try { source.stop(); } catch (_) {}
+    try { source.stop(); } catch (_) { }
   }
   activeAudioSources = [];
   if (audioCtx) nextPlayTime = audioCtx.currentTime;
@@ -315,6 +376,8 @@ function stopAssistantPlayback() {
 }
 
 function holdSpeakingFromTts() {
+  waitingForAssistant = false;
+  waitingSince = 0;
   setSpeakingLock(1200);
   syncFaceState();
 }
