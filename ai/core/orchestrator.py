@@ -5,9 +5,9 @@ _EMOTION_LINE_RE = re.compile(r"^\s*EMOTION:\s*.*$", re.I)
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 _FALLBACKS = [
-    "I'm here. What would you like to talk about?",
-    "I'm listening. What's on your mind?",
-    "Tell me what you'd like to chat about.",
+    "I can help with that. Tell me one more detail so I can answer clearly.",
+    "I want to answer this well. Give me a bit more context and I'll do it.",
+    "I'm on it. What exact part should I focus on first?",
 ]
 
 
@@ -36,7 +36,7 @@ class Orchestrator:
             assistant_text = ""
 
         if not assistant_text.strip():
-            assistant_text = _FALLBACKS[session.fallback_count % len(_FALLBACKS)]
+            assistant_text = self._fallback_reply(text, session.fallback_count)
             session.fallback_count += 1
             if emotion.get("emotion") in {"thinking", "neutral"}:
                 emotion = {"emotion": "curious", "intensity": 0.5}
@@ -53,6 +53,15 @@ class Orchestrator:
             speaking=True,
         )
         return assistant_text, expression, tts_stream
+
+    def _fallback_reply(self, user_text: str, idx: int) -> str:
+        base = _FALLBACKS[idx % len(_FALLBACKS)]
+        snippet = " ".join((user_text or "").strip().split())
+        if not snippet:
+            return base
+        if len(snippet) > 90:
+            snippet = snippet[:90].rstrip() + "..."
+        return f"{base} I heard: \"{snippet}\"."
 
     def _stream_tts_by_sentence(self, spoken_text: str) -> Iterator[bytes]:
         if not spoken_text:

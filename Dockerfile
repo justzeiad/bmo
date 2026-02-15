@@ -9,6 +9,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ai ./ai
+COPY frontend ./frontend
 COPY main.py ./main.py
 
 EXPOSE 8000

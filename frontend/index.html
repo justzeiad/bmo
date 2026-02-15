@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BMO Voice Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/frontend/faces/idle/idle%2001.png" />
+  <link rel="stylesheet" href="/frontend/styles.css" />
+</head>
+<body data-emotion="neutral">
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>BMO</h1>
+        <span>Realtime Voice Console</span>
+      </div>
+      <div class="topbar-right">
+        <span id="connBadge" class="badge offline">offline</span>
+        <span id="latencyState" class="pill">-</span>
+      </div>
+    </header>
+
+    <section class="stage-card" id="stageCard">
+      <div class="face-frame" id="faceFrame">
+        <img id="faceImage" class="face-image" src="/frontend/faces/idle/idle%2001.png" alt="BMO face" />
+        <div class="face-overlay"></div>
+      </div>
+
+      <div class="subhead mode-head">Face Mode</div>
+      <div class="turn-strip">
+        <span id="turnIdle" class="turn-chip active">idle</span>
+        <span id="turnListening" class="turn-chip">listening</span>
+        <span id="turnThinking" class="turn-chip">thinking</span>
+        <span id="turnSpeaking" class="turn-chip">speaking</span>
+      </div>
+
+      <div class="hud-row">
+        <span id="faceState" class="pill">idle</span>
+        <span id="emotionState" class="pill">neutral 30%</span>
+        <span id="micState" class="pill">mic idle</span>
+      </div>
+
+      <div class="meter">
+        <label>Mouth amplitude</label>
+        <div class="meter-track"><div id="mouthMeter" class="meter-fill"></div></div>
+      </div>
+    </section>
+
+    <section class="panel transcript-panel">
+      <h2>Transcript</h2>
+      <p id="transcriptText">-</p>
+    </section>
+
+    <section class="panel assistant-panel">
+      <h2>BMO Reply</h2>
+      <p id="assistantText">-</p>
+    </section>
+
+    <section class="panel controls-panel">
+      <h2>Controls</h2>
+      <div class="controls-grid">
+        <label>WS URL
+          <input id="wsUrl" value="ws://localhost:8000/ws" />
+        </label>
+
+        <div class="row">
+          <button id="connectBtn">Connect</button>
+          <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+
+        <label>Text Input
+          <input id="textInput" placeholder="Type a message" />
+        </label>
+        <button id="sendBtn" disabled>Send Text</button>
+
+        <div class="row">
+          <button id="startMicBtn" disabled>Start Talking</button>
+          <button id="stopMicBtn" disabled>Stop Talking</button>
+        </div>
+
+        <div class="subhead">BMO Mode</div>
+        <div class="row">
+          <button id="startLiveBtn" disabled>Start Live</button>
+          <button id="stopLiveBtn" disabled>Stop Live</button>
+        </div>
+
+        <div class="row">
+          <button id="interruptBtn" disabled>Interrupt BMO</button>
+          <label class="checkbox"><input type="checkbox" id="autoEndpoint" checked />Auto endpoint</label>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel logs-panel">
+      <h2>Event Log</h2>
+      <textarea id="log" readonly></textarea>
+    </section>
+  </main>
+
+  <script src="/frontend/app.js"></script>
+</body>
+</html>

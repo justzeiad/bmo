@@ -15,15 +15,17 @@ ALLOWED_EMOTIONS = {
 }
 
 EMOTION_RE = re.compile(r"EMOTION:\s*(\{.*?\})", flags=re.S)
+EMOTION_LINE_RE = re.compile(r"^\s*EMOTION:\s*.*$", flags=re.M)
 
 
 def extract_emotion_block(text: str) -> Tuple[Optional[Dict], str]:
     match = EMOTION_RE.search(text)
+    cleaned = EMOTION_LINE_RE.sub("", text).strip()
     if not match:
-        return None, text.strip()
+        return None, cleaned
 
     json_text = match.group(1)
-    cleaned = EMOTION_RE.sub("", text).strip()
+    cleaned = EMOTION_RE.sub("", cleaned).strip()
     try:
         data = json.loads(json_text)
     except Exception:

@@ -6,6 +6,8 @@ from typing import Optional
 
 import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import anyio
 
 from ai.core.dialog_manager import DialogManager
@@ -46,6 +48,20 @@ SETTINGS = _load_yaml(SETTINGS_PATH)
 PROMPTS = _load_yaml(PROMPTS_PATH)
 TTS_CONFIG = SETTINGS.get("models", {}).get("tts", {})
 LLM_CONFIG = SETTINGS.get("models", {}).get("llm", {})
+STT_CONFIG = SETTINGS.get("models", {}).get("stt", {})
+TTS_WS_CHUNK_BYTES = int(TTS_CONFIG.get("ws_chunk_bytes", 8192))
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+
+
+@app.get("/")
+async def frontend_index():
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return {"status": "frontend_not_found"}
 
 
 def build_orchestrator() -> Orchestrator:
@@ -62,6 +78,7 @@ def build_orchestrator() -> Orchestrator:
         model=llm_cfg.get("model", "gemma3"),
         host=llm_cfg.get("host", "http://localhost:11434"),
         options=llm_cfg.get("options"),
+        keep_alive=llm_cfg.get("keep_alive"),
     )
     tts_cfg = TTS_CONFIG
     tts_provider = tts_cfg.get("provider", "xtts")
@@ -93,15 +110,46 @@ async def _startup_warmup() -> None:
         llm_client = LLMClient(
             model=LLM_CONFIG.get("model", "gemma3"),
             host=LLM_CONFIG.get("host", "http://localhost:11434"),
-            options={**(LLM_CONFIG.get("options") or {}), "num_predict": 1},
+            options=LLM_CONFIG.get("options"),
+            keep_alive=LLM_CONFIG.get("keep_alive"),
         )
-        try:
-            llm_client.generate([{"role": "user", "content": prompt}])
-            logger.info("LLM warmup complete")
-        except Exception as exc:
-            logger.warning("LLM warmup failed: %s", exc)
+        last_exc = None
+        for attempt in range(1, 9):
+            try:
+                llm_client.warmup(prompt)
+                logger.info("LLM warmup complete")
+                return
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(1.5)
+        logger.warning("LLM warmup failed after retries: %s", last_exc)
 
     await anyio.to_thread.run_sync(_run)
+
+    if not STT_CONFIG.get("warmup", False):
+        return
+
+    def _run_stt() -> None:
+        try:
+            stt = STTStreamer(
+                model_size=STT_CONFIG.get("model", "base"),
+                device=STT_CONFIG.get("device", "cpu"),
+                compute_type=STT_CONFIG.get("compute_type", "int8"),
+                sample_rate=STT_CONFIG.get("sample_rate", 16000),
+                partial_seconds=STT_CONFIG.get("partial_seconds", 1.0),
+                max_partial_seconds=STT_CONFIG.get("max_partial_seconds", 30.0),
+                language=STT_CONFIG.get("language", "en"),
+            )
+            sample_rate = int(STT_CONFIG.get("sample_rate", 16000))
+            warmup_seconds = float(STT_CONFIG.get("warmup_seconds", 1.0))
+            warmup_samples = max(1, int(sample_rate * warmup_seconds))
+            stt.feed_chunk(b"\x00\x00" * warmup_samples)
+            stt.finalize()
+            logger.info("STT warmup complete")
+        except Exception as exc:
+            logger.warning("STT warmup failed: %s", exc)
+
+    await anyio.to_thread.run_sync(_run_stt)
 
 
 @app.websocket("/ws")
@@ -146,7 +194,15 @@ async def websocket_endpoint(websocket: WebSocket):
             if msg_type == "start_speech":
                 if session is None:
                     session = Session(session_id="session", user_id="user")
-                stt_streamer = STTStreamer()
+                stt_streamer = STTStreamer(
+                    model_size=STT_CONFIG.get("model", "base"),
+                    device=STT_CONFIG.get("device", "cpu"),
+                    compute_type=STT_CONFIG.get("compute_type", "int8"),
+                    sample_rate=STT_CONFIG.get("sample_rate", 16000),
+                    partial_seconds=STT_CONFIG.get("partial_seconds", 1.0),
+                    max_partial_seconds=STT_CONFIG.get("max_partial_seconds", 30.0),
+                    language=STT_CONFIG.get("language", "en"),
+                )
                 await _send_json(websocket, {"type": "listening", "ok": True})
                 continue
 
@@ -198,28 +254,60 @@ async def _handle_user_text(websocket: WebSocket, orchestrator: Orchestrator, se
     seq = 0
     sent_audio = False
     tts_started = None
-    for chunk in tts_stream:
+    last_expr_sent = 0.0
+    last_amp = 0.0
+    pending_pcm = bytearray()
+
+    async def _flush_pending(force: bool = False) -> int:
+        nonlocal seq, sent_audio, tts_started, last_expr_sent, last_amp, pending_pcm
+        if not pending_pcm:
+            return 0
+        if not force and len(pending_pcm) < TTS_WS_CHUNK_BYTES:
+            return 0
+
+        if force:
+            chunk_bytes = bytes(pending_pcm)
+            pending_pcm.clear()
+        else:
+            chunk_bytes = bytes(pending_pcm[:TTS_WS_CHUNK_BYTES])
+            del pending_pcm[:TTS_WS_CHUNK_BYTES]
         sent_audio = True
         if tts_started is None:
             tts_started = time.perf_counter()
 
-        amp = rms_amplitude(chunk)
-        await _send_json(websocket, {"type": "expression", **{**expression, "speaking": True, "mouth_amplitude": amp}})
+        amp = rms_amplitude(chunk_bytes)
+        now = time.perf_counter()
+        # Throttle expression chatter to lower WebSocket/UI load while preserving lip-sync.
+        if (now - last_expr_sent) >= 0.07 or abs(amp - last_amp) >= 0.12 or seq == 0:
+            await _send_json(websocket, {"type": "expression", **{**expression, "speaking": True, "mouth_amplitude": amp}})
+            last_expr_sent = now
+            last_amp = amp
 
-        out_chunk = chunk
+        out_chunk = chunk_bytes
         if TTS_CONFIG.get("stream_wav_chunks", False):
             out_chunk = pcm16le_to_wav_bytes(
-                chunk,
+                chunk_bytes,
                 sample_rate=int(TTS_CONFIG.get("sample_rate", 16000)),
                 channels=1,
             )
         await _send_json(websocket, {"type": "tts_chunk", "seq": seq, "data": base64.b64encode(out_chunk).decode("ascii")})
         seq += 1
+        return len(chunk_bytes)
+
+    for chunk in tts_stream:
+        if not chunk:
+            continue
+        pending_pcm.extend(chunk)
+        while len(pending_pcm) >= TTS_WS_CHUNK_BYTES:
+            await _flush_pending(force=False)
+
+    await _flush_pending(force=True)
 
     if sent_audio:
         await _send_json(websocket, {"type": "expression", **{**expression, "speaking": False, "mouth_amplitude": 0.0}})
     else:
         await _send_json(websocket, {"type": "expression", **{**expression, "speaking": False}})
+    await _send_json(websocket, {"type": "turn_done", "had_tts": sent_audio})
 
     done = time.perf_counter()
     llm_ms = int((llm_done - turn_started) * 1000)

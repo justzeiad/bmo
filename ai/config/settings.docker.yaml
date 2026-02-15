@@ -3,10 +3,13 @@
     provider: ollama
     model: llama3.2:1b
     host: http://ollama:11434
+    keep_alive: "30m"
     options:
-      temperature: 0.2
+      temperature: 0.25
+      top_p: 0.9
+      repeat_penalty: 1.1
       num_predict: 80
-      keep_alive: "10m"
+      num_ctx: 2048
     warmup: true
     warmup_prompt: "ping"
   vlm:
@@ -14,14 +17,23 @@
     model: moondream2
   stt:
     provider: whisper
-    model: base
+    model: tiny.en
+    device: cpu
+    compute_type: int8
+    sample_rate: 16000
+    partial_seconds: 0.8
+    max_partial_seconds: 8.0
+    language: en
+    warmup: true
+    warmup_seconds: 1.0
   tts:
     provider: piper
     model: "ai/tts/models/en_US-bmo_voice.onnx"
-    speaker: null
+    speaker: True
     sample_rate: 22050
     executable: piper
     stream_wav_chunks: true
+    ws_chunk_bytes: 8192
 
 network:
   host: 0.0.0.0
@@ -30,6 +42,6 @@ network:
 
 features:
   use_vad: false
-  enable_memory: true
-  enable_safety_filter: true
+  enable_memory: false
+  enable_safety_filter: false
   allow_cloud_models: false
