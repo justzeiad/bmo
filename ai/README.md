@@ -17,7 +17,7 @@ This folder contains the AI backend architecture for BMO. It defines how STT, LL
 ## Run Locally (placeholder)
 - Configure models in `ai/config/settings.yaml` and prompts in `ai/config/prompts.yaml`.
 - Start the API server in your app entrypoint (not included here).
-- Ensure Ollama, Whisper/faster-whisper, and Piper/XTTS are available locally if enabled.
+- Ensure Ollama, Whisper, and Piper/XTTS are available locally if enabled.
 
 ## Add a New Emotion
 - Update `ai/config/emotions.yaml`.

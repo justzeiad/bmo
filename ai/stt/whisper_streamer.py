@@ -1,6 +1,8 @@
-﻿from typing import Optional
+from typing import Optional
+
 import numpy as np
-from faster_whisper import WhisperModel
+import whisper
+
 
 class STTStreamer:
     _model_cache = {}
@@ -21,12 +23,12 @@ class STTStreamer:
         self.language = language
         self._buffer = bytearray()
         self._last_partial_len = 0
+        self._use_fp16 = str(device or "").lower().startswith("cuda")
 
-        cache_key = (model_size, device, compute_type)
+        # Keep compute_type for backwards compatibility in config files.
+        cache_key = (model_size, device)
         if cache_key not in self._model_cache:
-            self._model_cache[cache_key] = WhisperModel(
-                model_size, device=device, compute_type=compute_type
-            )
+            self._model_cache[cache_key] = whisper.load_model(model_size, device=device)
         self.model = self._model_cache[cache_key]
 
     def feed_chunk(self, bytes_chunk: bytes) -> Optional[str]:
@@ -56,13 +58,13 @@ class STTStreamer:
     def _transcribe(self, audio: np.ndarray, is_final: bool) -> Optional[str]:
         if audio.size == 0:
             return None
-        segments, _ = self.model.transcribe(
+        result = self.model.transcribe(
             audio,
             language=self.language,
-            beam_size=1,
-            vad_filter=False,
+            temperature=0.0,
+            verbose=False,
+            fp16=self._use_fp16,
             condition_on_previous_text=not is_final,
         )
-        text_parts = [seg.text.strip() for seg in segments if seg.text]
-        text = " ".join([p for p in text_parts if p])
+        text = str(result.get("text") or "").strip()
         return text if text else None
