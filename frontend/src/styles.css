@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "VT323", monospace;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(58, 230, 109, 0.15), transparent 28%),
+    radial-gradient(circle at 85% 88%, rgba(164, 255, 188, 0.1), transparent 34%),
+    #040706;
+  color: #e8ffef;
+}
+
+.pixel-font {
+  font-family: "Press Start 2P", cursive;
+}
+
+.crt-scan {
+  position: relative;
+}
+
+.crt-scan::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.03),
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+}
+
+.face-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    radial-gradient(circle at 84% 16%, rgba(58, 230, 109, 0.28), transparent 35%);
+}
+
+.monitor-face {
+  transition: filter 140ms linear, transform 140ms linear;
+}
+
+.monitor-face.speaking {
+  filter: saturate(1.1) brightness(1.04);
+}
+
+.monitor-face.listening {
+  filter: saturate(1.04) brightness(1.01);
+}
+
+.monitor-face.thinking {
+  filter: saturate(0.94) brightness(0.95);
+}
+
+.turn-chip {
+  transition: border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.turn-chip.active {
+  border-color: rgba(164, 255, 188, 0.95) !important;
+  color: #eaffef !important;
+  box-shadow: 0 0 14px rgba(58, 230, 109, 0.24);
+}
+
+.emotion-pulse {
+  animation: emotionPulse 320ms ease;
+}
+
+@keyframes emotionPulse {
+  0% {
+    box-shadow: 0 0 0 2px rgba(58, 230, 109, 0.64), 0 0 24px rgba(58, 230, 109, 0.24);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+.barge-flash {
+  animation: bargeFlash 260ms ease;
+}
+
+@keyframes bargeFlash {
+  0% {
+    box-shadow: 0 0 0 2px rgba(255, 110, 120, 0.78), 0 0 20px rgba(255, 110, 120, 0.36);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(58, 230, 109, 0.2), transparent 32%),
+    rgba(2, 6, 4, 0.82);
+  backdrop-filter: blur(3px);
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 320ms ease;
+}
+
+.boot-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.game-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.menu-enter {
+  animation: menuEnter 200ms ease;
+}
+
+@keyframes menuEnter {
+  from {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

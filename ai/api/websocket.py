@@ -6,7 +6,7 @@ from typing import Optional
 
 import yaml
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 import anyio
 
@@ -56,16 +56,23 @@ TTS_WS_CHUNK_BYTES = int(TTS_CONFIG.get("ws_chunk_bytes", 8192))
 TTS_SAMPLE_RATE = int(TTS_CONFIG.get("sample_rate", 16000))
 TTS_STREAM_WAV = bool(TTS_CONFIG.get("stream_wav_chunks", False))
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
+FRONTEND_DIST_DIR = os.path.join(FRONTEND_DIR, "dist")
+FRONTEND_SRC_INDEX = os.path.join(FRONTEND_DIR, "index.html")
+if os.path.isfile(os.path.join(FRONTEND_DIST_DIR, "index.html")):
+    FRONTEND_STATIC_DIR = FRONTEND_DIST_DIR
+elif os.path.isfile(FRONTEND_SRC_INDEX):
+    FRONTEND_STATIC_DIR = FRONTEND_DIR
+else:
+    FRONTEND_STATIC_DIR = ""
 
-if os.path.isdir(FRONTEND_DIR):
-    app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+if FRONTEND_STATIC_DIR and os.path.isdir(FRONTEND_STATIC_DIR):
+    app.mount("/frontend", StaticFiles(directory=FRONTEND_STATIC_DIR, html=True), name="frontend")
 
 
 @app.get("/")
 async def frontend_index():
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
-    if os.path.isfile(index_path):
-        return FileResponse(index_path)
+    if FRONTEND_STATIC_DIR:
+        return RedirectResponse(url="/frontend/", status_code=307)
     return {"status": "frontend_not_found"}
 
 
