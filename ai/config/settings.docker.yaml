@@ -11,7 +11,7 @@
       repeat_penalty: 1.07
       num_predict: 72
       num_ctx: 1536
-    warmup: false
+    warmup: true
     warmup_prompt: "ping"
   vlm:
     provider: ollama
@@ -25,7 +25,7 @@
     partial_seconds: 0.5
     max_partial_seconds: 8.0
     language: en
-    warmup: false
+    warmup: true
     warmup_seconds: 1.0
   tts:
     provider: piper

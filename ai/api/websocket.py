@@ -66,13 +66,21 @@ else:
     FRONTEND_STATIC_DIR = ""
 
 if FRONTEND_STATIC_DIR and os.path.isdir(FRONTEND_STATIC_DIR):
-    app.mount("/frontend", StaticFiles(directory=FRONTEND_STATIC_DIR, html=True), name="frontend")
+    app.mount("/bmo", StaticFiles(directory=FRONTEND_STATIC_DIR, html=True), name="bmo")
 
 
 @app.get("/")
 async def frontend_index():
     if FRONTEND_STATIC_DIR:
-        return RedirectResponse(url="/frontend/", status_code=307)
+        return RedirectResponse(url="/bmo/", status_code=307)
+    return {"status": "frontend_not_found"}
+
+
+@app.get("/frontend")
+@app.get("/frontend/")
+async def frontend_legacy_redirect():
+    if FRONTEND_STATIC_DIR:
+        return RedirectResponse(url="/bmo/", status_code=307)
     return {"status": "frontend_not_found"}
 
 
